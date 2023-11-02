@@ -36,10 +36,35 @@ const client = new MongoClient(uri, {
 });
 
 // middlewares
-// const logger = async(req, res, next) =>{
-//    console.log('called', req.host, req.originalUrl);
-//    next();
-// }
+const logger = async(req, res, next) =>{
+   console.log('called:', req.host, req.originalUrl)
+   next();
+}
+
+
+const verifyToken = async(req, res, next)=>{
+  const token = req.cookies?.token;
+  console.log('Value of token in middleware:', token);
+
+  if(!token){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+  // verify token
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET , (error, decoded)=>{
+    // error
+    if(error){
+      console.log(error.message)
+      return res.status(401).send({message: 'unAuthorized access'})
+    }
+    // decoded or valid  
+    console.log('Value in the token', decoded);
+    req.user = decoded;
+    next();
+  } )
+
+
+  // next()
+}
 
 
 async function run() {
@@ -52,7 +77,7 @@ async function run() {
     const bookingCollection = client.db('carDoctor').collection('bookings');
 
     // Auth related Api
-    app.post('/jwt', async(req, res)=>{
+    app.post('/jwt', logger, async(req, res)=>{
       const user = req.body;
       console.log(user);
       // const token = jwt.sign(user, 'secret', {expiresIn: '1h' } )
@@ -71,7 +96,7 @@ async function run() {
 
     // Services related api
     // makes all service api
-    app.get('/services',  async(req, res)=>{
+    app.get('/services',  logger, async(req, res)=>{
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -95,6 +120,25 @@ async function run() {
 
     // booking related Api
 
+    // read all and special data api
+    app.get('/bookings', logger, verifyToken, async(req, res)=>{
+      console.log(req.query.email);
+      // console.log('tok tok token', req.cookies.token )
+      console.log('user in the valid token:',req.user);
+
+      if(req.query.email !== req.user.email){
+        return res.status(403).send({message: 'forbidden'})
+      }
+
+      let query ={};
+
+      if(req.query?.email){
+        query= {email: req.query.email}
+      }
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result)
+    })
+
     // insert a booking Api for mongodb
     app.post('/bookings',   async(req, res)=>{
         const booking = req.body;
@@ -104,18 +148,7 @@ async function run() {
     })
 
 
-    // read all and special data api
-    app.get('/bookings', async(req, res)=>{
-      console.log(req.query.email);
-      console.log('tok tok token', req.cookies.token )
-      let query ={};
-
-      if(req.query?.email){
-        query= {email: req.query.email}
-      }
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result)
-    })
+    
 
 
     // update data
