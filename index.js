@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+// const jwt = require('jsonwebtoken');
 const jwt = require('jsonwebtoken');
+
 const cookieParser = require('cookie-parser');
 require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -15,7 +17,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
-app.use(cookieParser())
+app.use(cookieParser());
 
 
 
@@ -34,11 +36,10 @@ const client = new MongoClient(uri, {
 });
 
 // middlewares
-
-const logger = async(req, res, next) =>{
-   console.log('called', req.host, req.originalUrl);
-   next();
-}
+// const logger = async(req, res, next) =>{
+//    console.log('called', req.host, req.originalUrl);
+//    next();
+// }
 
 
 async function run() {
@@ -51,11 +52,12 @@ async function run() {
     const bookingCollection = client.db('carDoctor').collection('bookings');
 
     // Auth related Api
-    app.post('/jwt', logger, async(req, res)=>{
+    app.post('/jwt', async(req, res)=>{
       const user = req.body;
       console.log(user);
+      // const token = jwt.sign(user, 'secret', {expiresIn: '1h' } )
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h' } )
-
+     
       // res.send(token)
       res
       .cookie('token', token, {
@@ -69,7 +71,7 @@ async function run() {
 
     // Services related api
     // makes all service api
-    app.get('/services', logger, async(req, res)=>{
+    app.get('/services',  async(req, res)=>{
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -94,7 +96,7 @@ async function run() {
     // booking related Api
 
     // insert a booking Api for mongodb
-    app.post('/bookings', logger,  async(req, res)=>{
+    app.post('/bookings',   async(req, res)=>{
         const booking = req.body;
         console.log(booking);
         const result = await bookingCollection.insertOne(booking);
