@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
@@ -7,8 +9,13 @@ const port = process.env.PORT || 5000;
 
 
 // middleware
-app.use(cors());
+// app.use(cors()); // you need to do this for send clint site cookie
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser())
 
 
 
@@ -26,6 +33,14 @@ const client = new MongoClient(uri, {
   }
 });
 
+// middlewares
+
+const logger = async(req, res, next) =>{
+   console.log('called', req.host, req.originalUrl);
+   next();
+}
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -33,10 +48,28 @@ async function run() {
 
     const serviceCollection = client.db('carDoctor').collection('services');
 
-    const bookingCollection = client.db('carDoctor').collection('bookings')
+    const bookingCollection = client.db('carDoctor').collection('bookings');
 
+    // Auth related Api
+    app.post('/jwt', logger, async(req, res)=>{
+      const user = req.body;
+      console.log(user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h' } )
+
+      // res.send(token)
+      res
+      .cookie('token', token, {
+        httpOnly: true,
+        secure:false,
+        // sameSite: 'none'
+      })
+      .send({success:true})
+    })
+
+
+    // Services related api
     // makes all service api
-    app.get('/services', async(req, res)=>{
+    app.get('/services', logger, async(req, res)=>{
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -61,7 +94,7 @@ async function run() {
     // booking related Api
 
     // insert a booking Api for mongodb
-    app.post('/bookings', async(req, res)=>{
+    app.post('/bookings', logger,  async(req, res)=>{
         const booking = req.body;
         console.log(booking);
         const result = await bookingCollection.insertOne(booking);
@@ -72,6 +105,7 @@ async function run() {
     // read all and special data api
     app.get('/bookings', async(req, res)=>{
       console.log(req.query.email);
+      console.log('tok tok token', req.cookies.token )
       let query ={};
 
       if(req.query?.email){
